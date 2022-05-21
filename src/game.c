@@ -1,0 +1,206 @@
+#include <openmpi/mpi.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "misc_header.h"
+#include "game.h"
+#include "utils.h"
+
+#define N_NBR 8
+
+char **next_gen;
+
+void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *left, int *right, int *top, int *bottom, int *topleft, int *topright, int *bottomleft, int *bottomright)
+{
+    int disp = 1;
+    int my_pos[2];
+    int corner_pos[2];
+
+    // Gracias a que nuestros procesos están organizados como un grid cartesiano, podemos hacer uso
+    // de esta función para obtener nuestros vecinos, sin tener que preocuparnos de si somos la última
+    // o primera fila. Se encarga automáticamente. Decimos en qué eje queremos obtener los vecinos, que
+    // están siempre a un desplazamiento de 1 unidad respecto a nuestro proceso "base"
+    MPI_Cart_shift(comm_grid, 0, disp, top, bottom);
+    MPI_Cart_shift(comm_grid, 1, disp, left, right);
+
+    // Para las esquinas tenemos que hacerlo distinto, no es tan fácil como hacer un shift
+    // Calculamos las coordenadas de nuestro proceso, y las ajustamos para llegar a las esquina
+
+    // Esquina superior derecha
+    MPI_Cart_coords(comm_grid, my_rank, 2, my_pos);
+    corner_pos[0] = my_pos[0] - 1;
+    corner_pos[1] = (my_pos[1] + 1) % np_x;
+
+    if (corner_pos[0] < 0)
+        corner_pos[0] = np_y - 1;
+    // dando unas coordenadas, obtenemos el rank
+    MPI_Cart_rank(comm_grid, corner_pos, topright);
+
+    // Esquina superior izquierda
+    corner_pos[1] = my_pos[1] - 1;
+
+    if (corner_pos[1] < 0)
+        corner_pos[1] = np_x - 1;
+    MPI_Cart_rank(comm_grid, corner_pos, topleft);
+
+    // Esquina inferior derecha
+    corner_pos[0] = (my_pos[0] + 1) % np_y;
+    corner_pos[1] = (my_pos[1] + 1) % np_x;
+    MPI_Cart_rank(comm_grid, corner_pos, bottomright);
+
+    // Esquina inferior izquierda
+    corner_pos[1] = my_pos[1] - 1;
+    if (corner_pos[1] < 0)
+        corner_pos[1] = np_x - 1;
+    MPI_Cart_rank(comm_grid, corner_pos, bottomleft);
+}
+
+int neighbourhood_sum(int outer_i, int outer_j)
+{
+    int sum = 0;
+
+    // Recorro todos mis vecinos
+    for (int i = -1; i <= 1; i++)
+    {
+        for (int j = -1; j <= 1; j++)
+        {
+            if (i || j) // true siempre que i y j sean distintos de 0 (que seria el caso de ser tu mismo)
+                if (matrix[outer_i + i][outer_j + j] == '1')
+                    sum++;
+        }
+    }
+    return sum;
+}
+
+void find_next_state(int i, int j, int sum)
+{
+    // Si la célula está viva...
+    if (matrix[i][j] == '1')
+    {
+        // Muere si la suma de sus vecinos vivos es distinta de 2 o 3
+        if (sum < 2 || sum > 3)
+        {
+            next_gen[i][j] = '0';
+        }
+        else
+        {
+            next_gen[i][j] = '1';
+        }
+    }
+    else
+    { // Célula muerta
+        // Sólo se convierte en viva si tiene exactamente 3 vecinos vivos
+        if (sum == 3)
+        {
+            next_gen[i][j] = '1';
+        }
+        else
+        {
+            // En cualquier otro caso sigue muerta
+            next_gen[i][j] = '0';
+        }
+    }
+}
+
+void calculate_inner()
+{
+    // Tenemos que quitar la matriz base por los bordes, solo nos interesa la parte que no tiene
+    // interacción con otros procesos
+
+    for (int i = 1; i < local_n_rows - 1; i++)
+    {
+        for (int j = 1; j < local_n_cols - 1; j++)
+        {
+            find_next_state(i, j, neighbourhood_sum(i, j));
+        }
+    }
+}
+
+void calculate_outer()
+{
+    for (int i = 1; i <= local_n_rows; i++)
+    {
+        for (int j = 0; j <= local_n_rows; j++)
+        {
+            // Solo si estamos en los extremos
+            if (i == 0 || j == 0 || i == local_n_rows - 1 || j == local_n_cols - 1)
+            {
+                neighbourhood_sum(i, j);
+                find_next_state(i, j, neighbourhood_sum(i, j));
+                printf("NO SALE BIEN PAY\n");
+            }
+        }
+    }
+}
+
+void interchange_info(int np_y, int np_x, int left, int right, int top, int bottom, int topright, int topleft, int bottomright, int bottomleft, MPI_Comm comm_grid)
+{
+    int row, col = 0;
+    // Enviamos y recibimos primera y última columna a nuestros vecinos left y right. Vamos a usar como tag el NUMERO DE FILA
+    for (row = 1; row < np_y; row++)
+    {
+        MPI_Send(&(matrix[row][1]), 1, MPI_CHAR, left, row, comm_grid);
+        MPI_Send(&(matrix[row][np_x - 1]), 1, MPI_CHAR, right, row, comm_grid);
+
+        MPI_Recv(&(matrix[row][0]), 1, MPI_CHAR, left, row, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Recv(&(matrix[row][np_x]), 1, MPI_CHAR, right, row, comm_grid, MPI_STATUS_IGNORE);
+    }
+
+    // Enviamos y recibimos primera y última fila a nuestros vecinos top y bottom. tag = número de columna
+    for (col = 1; col < np_x; col++)
+    {
+        MPI_Send(&(matrix[1][col]), 1, MPI_CHAR, top, col, comm_grid);
+        MPI_Send(&(matrix[np_y - 1][col]), 1, MPI_CHAR, bottom, col, comm_grid);
+
+        MPI_Recv(&(matrix[0][col]), 1, MPI_CHAR, top, col, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Recv(&(matrix[np_y][col]), 1, MPI_CHAR, bottom, col, comm_grid, MPI_STATUS_IGNORE);
+    }
+
+    // Faltan las esquinas. Con los vecinos esquina sólo intercambiamos las esquinas
+    // Arriba derecha
+    MPI_Send(&(matrix[np_y - 1][np_x - 1]), 1, MPI_CHAR, topright, 0, comm_grid);
+    MPI_Send(&(matrix[np_y - 1][0]), 1, MPI_CHAR, topleft, 0, comm_grid);
+    MPI_Send(&(matrix[0][np_x - 1]), 1, MPI_CHAR, bottomright, 0, comm_grid);
+    MPI_Send(&(matrix[0][0]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
+
+    // Arriba izquierda
+    MPI_Recv(&(matrix[np_y - 1][np_x - 1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[np_y - 1][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[0][np_x - 1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[0][0]), 1, MPI_CHAR, bottomleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+
+    // Abajo derecha
+
+    // Abajo izquierda
+}
+
+void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS)
+{
+    // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir
+    next_gen = allocate_memory(local_n_rows + 2, local_n_cols + 2);
+
+    // vecinos
+    int left,
+        right, bottom, top, topleft, topright, bottomleft, bottomright;
+    find_neighbours(comm_grid, rank, np_y, np_x, &left, &right, &bottom, &top, &topleft, &topright, &bottomleft, &bottomright);
+
+    // para recorrerlos más fácilmente
+    int *neighbours[] = {&left, &right, &bottom, &top, &topleft, &topright, &bottomleft, &bottomright};
+
+    // calculos para los que no se necesitan vecinos (matriz interna sin contar los bordes, es decir,
+    //  primera fila y primera columna)
+
+    // game loop
+    for (int i = 0; i < MAX_GENERATIONS; i++)
+    {
+        // printf("En bucle pay\n");
+        // Hacemos los cálculos que no tienen dependencias con vecinos
+        calculate_inner();
+        // printf("calculado inner pay\n");
+        // Intercambiar información con nuestros vecinos
+        interchange_info(np_y, np_x, left, right, top, bottom, topright, topleft, bottomright, bottomleft, comm_grid);
+        // Una vez tenemos los valores de nuestros vecinos, calculamos lo que nos queda
+        calculate_outer();
+        next_gen = matrix;
+    }
+}
