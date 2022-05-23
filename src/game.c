@@ -182,6 +182,9 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS)
     // vecinos
     int left,
         right, bottom, top, topleft, topright, bottomleft, bottomright;
+    
+    char **temp;
+
     find_neighbours(comm_grid, rank, np_y, np_x, &left, &right, &bottom, &top, &topleft, &topright, &bottomleft, &bottomright);
 
     // para recorrerlos más fácilmente
@@ -201,6 +204,9 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS)
         interchange_info(np_y, np_x, left, right, top, bottom, topright, topleft, bottomright, bottomleft, comm_grid);
         // Una vez tenemos los valores de nuestros vecinos, calculamos lo que nos queda
         calculate_outer();
-        next_gen = matrix;
+
+        temp = matrix;
+        matrix = next_gen;
+        next_gen = temp;
     }
 }
