@@ -2,18 +2,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "misc_header.h"
 #include "game.h"
 #include "utils.h"
 
-#define N_ROWS 64
-#define N_COLS 64
-#define MAX_GENERATIONS 100
 
 char **matrix;
 int local_n_rows;
 int local_n_cols;
+int max_buf;
 
 void calculate_rows_cols(int *vector_n_rows, int *vector_n_cols, int size, int np_x, int np_y)
 {
@@ -82,11 +81,6 @@ int main(int argc, char const *argv[])
     MPI_Scatter(vector_n_rows, 1, MPI_INT, &local_n_cols, 1, MPI_INT, 0, comm_grid);
 
     // eliminamos los vectores, cada proceso tiene ya sus valores y no nos hacen falta
-    if (rank == 0)
-    {
-        free(vector_n_rows);
-        free(vector_n_cols);
-    }
 
     // Vamos a reservar 2 filas y 2 columnas extras para los intercambios
     // con los vecinos
@@ -95,6 +89,7 @@ int main(int argc, char const *argv[])
     // cada proceso inicializa de manera aleatoria su bloque
     // dejamos las primeras y últimas filas y columnas vacias (para lo que mencionaba
     // antes de los intercambios)
+    srand(getpid());
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
@@ -106,8 +101,9 @@ int main(int argc, char const *argv[])
         }
     }
 
-    // play game
-    game(comm_grid, rank, np_x, np_y, MAX_GENERATIONS);
+    // play game. el maximo siempre esta en la ultima
+    game(comm_grid, rank, np_x, np_y, vector_n_cols[0], vector_n_cols[sizeof(vector_n_cols) / sizeof(int) - 1],
+         vector_n_rows[0], vector_n_rows[sizeof(vector_n_rows) / sizeof(int) - 1]);
 
     MPI_Finalize();
 
