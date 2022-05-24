@@ -55,6 +55,19 @@ void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *l
     MPI_Cart_rank(comm_grid, corner_pos, bottomleft);
 }
 
+void fill_buf(int rows, int cols, char *buffer)
+{
+    int index = 0;
+
+    for (int i = 1; i <= local_n_rows; i++)
+    {
+        for (int j = 1; j <= local_n_cols; j++)
+        {
+            buffer[index++] = matrix[i][j];
+        }
+    }
+}
+
 int neighbourhood_sum(int outer_i, int outer_j)
 {
     int sum = 0;
@@ -127,7 +140,6 @@ void calculate_outer()
             {
                 neighbourhood_sum(i, j);
                 find_next_state(i, j, neighbourhood_sum(i, j));
-                printf("NO SALE BIEN PAY\n");
             }
         }
     }
@@ -174,7 +186,21 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
     // Abajo izquierda
 }
 
-void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS)
+void print_global(char matrix[N_ROWS][N_COLS])
+{
+    for (int i = 0; i < N_ROWS; i++)
+    {
+        for (int j = 0; j < N_COLS; j++)
+        {
+            // printf("%c", matrix[i][j]);
+            if (matrix[i][j] == '1') printf("*");
+            else printf(" ");
+        }
+        printf("\n");
+    }
+}
+
+void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows)
 {
     // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir
     next_gen = allocate_memory(local_n_rows + 2, local_n_cols + 2);
@@ -182,13 +208,11 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS)
     // vecinos
     int left,
         right, bottom, top, topleft, topright, bottomleft, bottomright;
-    
+
     char **temp;
+    char **global_matrix;
 
     find_neighbours(comm_grid, rank, np_y, np_x, &left, &right, &bottom, &top, &topleft, &topright, &bottomleft, &bottomright);
-
-    // para recorrerlos más fácilmente
-    int *neighbours[] = {&left, &right, &bottom, &top, &topleft, &topright, &bottomleft, &bottomright};
 
     // calculos para los que no se necesitan vecinos (matriz interna sin contar los bordes, es decir,
     //  primera fila y primera columna)
@@ -208,5 +232,61 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS)
         temp = matrix;
         matrix = next_gen;
         next_gen = temp;
+
+        // printf("NO SALE BIEN PAY\n");
+        MPI_Request rq;
+        char buf[local_n_rows * local_n_cols];
+        fill_buf(local_n_rows, local_n_cols, buf);
+        MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows + local_n_cols, comm_grid, &rq);
+
+        if (rank == 0)
+        {
+            char buffer[max_rows * max_cols];
+            MPI_Status st;
+            int elements;
+            char global_matrix[N_ROWS][N_COLS];
+            int size;
+            MPI_Comm_size(comm_grid, &size);
+
+            int del_rows;
+            int del_cols;
+
+            int pos[2]; // y,x
+            int x, y;
+
+            for (int a = 0; a < size; a++)
+            {
+                MPI_Recv(buffer, max_rows * max_cols, MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_grid, &st);
+                elements = st.MPI_TAG;
+                MPI_Cart_coords(comm_grid, st.MPI_SOURCE, 2, pos);
+
+                y = pos[0] * normal_rows;
+                x = pos[1] * normal_cols;
+
+                if (elements == (normal_rows + normal_cols))
+                {
+                    del_rows = y + normal_rows;
+                    del_cols = x + normal_cols;
+                }
+                else
+                {
+                    del_rows = y + max_rows;
+                    del_cols = x + max_cols;
+                }
+
+                for (int j = y; j < del_rows; j++)
+                {
+                    for (int k = x; k < del_cols; k++)
+                    {
+                        global_matrix[j][k] = buffer[j + k];
+                    }
+                }
+            }
+
+            print_global(global_matrix);
+            printf("\n\n\n\n");
+        }
+
+        MPI_Barrier(comm_grid);
     }
 }

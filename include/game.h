@@ -10,4 +10,4 @@ void calculate_outer();
 
 void interchange_info(int np_y, int np_x, int left, int right, int top, int bottom, int topright, int topleft, int bottomright, int bottomleft, MPI_Comm comm_grid);
 
-void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int MAX_GENERATIONS);
+void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows);
