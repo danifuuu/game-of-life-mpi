@@ -66,6 +66,7 @@ void fill_buf(int rows, int cols, char *buffer)
             buffer[index++] = matrix[i][j];
         }
     }
+    // printf("elementos: %d\n", index);
 }
 
 int neighbourhood_sum(int outer_i, int outer_j)
@@ -188,13 +189,16 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
 
 void print_global(char matrix[N_ROWS][N_COLS])
 {
+    printf("\n");
     for (int i = 0; i < N_ROWS; i++)
     {
         for (int j = 0; j < N_COLS; j++)
         {
             // printf("%c", matrix[i][j]);
-            if (matrix[i][j] == '1') printf("*");
-            else printf(" ");
+            if (matrix[i][j] == '1')
+                printf("*");
+            else
+                printf(" ");
         }
         printf("\n");
     }
@@ -229,15 +233,11 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
         // Una vez tenemos los valores de nuestros vecinos, calculamos lo que nos queda
         calculate_outer();
 
-        temp = matrix;
-        matrix = next_gen;
-        next_gen = temp;
-
         // printf("NO SALE BIEN PAY\n");
         MPI_Request rq;
         char buf[local_n_rows * local_n_cols];
         fill_buf(local_n_rows, local_n_cols, buf);
-        MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows + local_n_cols, comm_grid, &rq);
+        MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
 
         if (rank == 0)
         {
@@ -263,7 +263,7 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
                 y = pos[0] * normal_rows;
                 x = pos[1] * normal_cols;
 
-                if (elements == (normal_rows + normal_cols))
+                if (elements == (normal_rows * normal_cols))
                 {
                     del_rows = y + normal_rows;
                     del_cols = x + normal_cols;
@@ -273,12 +273,12 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
                     del_rows = y + max_rows;
                     del_cols = x + max_cols;
                 }
-
+                int index = 0;
                 for (int j = y; j < del_rows; j++)
                 {
                     for (int k = x; k < del_cols; k++)
                     {
-                        global_matrix[j][k] = buffer[j + k];
+                        global_matrix[j][k] = buffer[index++];
                     }
                 }
             }
@@ -286,6 +286,10 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
             print_global(global_matrix);
             printf("\n\n\n\n");
         }
+
+        temp = matrix;
+        matrix = next_gen;
+        next_gen = temp;
 
         MPI_Barrier(comm_grid);
     }

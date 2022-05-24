@@ -20,6 +20,8 @@ void calculate_rows_cols(int *vector_n_rows, int *vector_n_cols, int size, int n
     {
         vector_n_rows[i] = N_ROWS / np_y;
         vector_n_cols[i] = N_COLS / np_x;
+
+        printf("i: %d, N_ROWS %d, N_COLS %d, np_x %d, np_y %d, VALOR %d\n",i, N_ROWS, N_COLS, np_x, np_y, vector_n_cols[i]);
     }
     // los últimos cargan con los restos (en caso de que haya)
     vector_n_rows[size - 1] += N_ROWS % np_y;
@@ -71,14 +73,14 @@ int main(int argc, char const *argv[])
         vector_n_cols = (int *)malloc(size * sizeof(int));
         vector_n_rows = (int *)malloc(size * sizeof(int));
 
-        // printf("np_x: %d,np_y: %d\n", np_x, np_y);
+        printf("np_x: %d,np_y: %d\n", np_x, np_y);
         calculate_rows_cols(vector_n_rows, vector_n_cols, size, np_x, np_y);
     }
 
     // llamada colectiva, se sincronizan todos los procesos. Cada uno recibe el número de filas
     // y columnas de el bloque con el que tiene que trabajar
     MPI_Scatter(vector_n_rows, 1, MPI_INT, &local_n_rows, 1, MPI_INT, 0, comm_grid);
-    MPI_Scatter(vector_n_rows, 1, MPI_INT, &local_n_cols, 1, MPI_INT, 0, comm_grid);
+    MPI_Scatter(vector_n_cols, 1, MPI_INT, &local_n_cols, 1, MPI_INT, 0, comm_grid);
 
     // eliminamos los vectores, cada proceso tiene ya sus valores y no nos hacen falta
 
@@ -90,6 +92,7 @@ int main(int argc, char const *argv[])
     // dejamos las primeras y últimas filas y columnas vacias (para lo que mencionaba
     // antes de los intercambios)
     srand(getpid());
+    printf("Matriz local inicial de [%d,%d] con rows:%d y cols: %d\n", my_pos[0], my_pos[1], local_n_rows, local_n_cols);
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
@@ -98,7 +101,11 @@ int main(int argc, char const *argv[])
                 matrix[i][j] = '1';
             else
                 matrix[i][j] = '0';
+
+        printf("%c", matrix[i][j]);
         }
+        printf("\n");
+
     }
 
     // play game. el maximo siempre esta en la ultima
