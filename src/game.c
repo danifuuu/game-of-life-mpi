@@ -55,16 +55,21 @@ void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *l
     MPI_Cart_rank(comm_grid, corner_pos, bottomleft);
 }
 
-void fill_buf(int rows, int cols, char *buffer)
+void fill_buf(int rows, int cols, char *buffer, int rank)
 {
     int index = 0;
+
+    printf("LLenado de buffer de %d\n", rank);
 
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
         {
             buffer[index++] = matrix[i][j];
+            printf("%c", buffer[index-1]);
+
         }
+        printf("\n");
     }
     // printf("elementos: %d\n", index);
 }
@@ -134,7 +139,7 @@ void calculate_outer()
 {
     for (int i = 1; i <= local_n_rows; i++)
     {
-        for (int j = 0; j <= local_n_rows; j++)
+        for (int j = 1; j <= local_n_cols; j++)
         {
             // Solo si estamos en los extremos
             if (i == 0 || j == 0 || i == local_n_rows - 1 || j == local_n_cols - 1)
@@ -146,40 +151,41 @@ void calculate_outer()
     }
 }
 
-void interchange_info(int np_y, int np_x, int left, int right, int top, int bottom, int topright, int topleft, int bottomright, int bottomleft, MPI_Comm comm_grid)
+void interchange_info(int np_y, int np_x, int left, int right, int top, int bottom, int topright, int topleft, int bottomright, int bottomleft, MPI_Comm comm_grid, int local_n_rows, int local_n_cols)
 {
+    printf("FILAS Y COLUMNAS: %d,%d\n", local_n_rows, local_n_cols);
     int row, col = 0;
     // Enviamos y recibimos primera y última columna a nuestros vecinos left y right. Vamos a usar como tag el NUMERO DE FILA
-    for (row = 1; row < np_y; row++)
+    for (row = 1; row <= local_n_rows; row++)
     {
         MPI_Send(&(matrix[row][1]), 1, MPI_CHAR, left, row, comm_grid);
-        MPI_Send(&(matrix[row][np_x - 1]), 1, MPI_CHAR, right, row, comm_grid);
+        MPI_Send(&(matrix[row][local_n_cols]), 1, MPI_CHAR, right, row, comm_grid);
 
         MPI_Recv(&(matrix[row][0]), 1, MPI_CHAR, left, row, comm_grid, MPI_STATUS_IGNORE);
-        MPI_Recv(&(matrix[row][np_x]), 1, MPI_CHAR, right, row, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Recv(&(matrix[row][local_n_cols+1]), 1, MPI_CHAR, right, row, comm_grid, MPI_STATUS_IGNORE);
     }
 
     // Enviamos y recibimos primera y última fila a nuestros vecinos top y bottom. tag = número de columna
-    for (col = 1; col < np_x; col++)
+    for (col = 1; col <= local_n_cols; col++)
     {
         MPI_Send(&(matrix[1][col]), 1, MPI_CHAR, top, col, comm_grid);
-        MPI_Send(&(matrix[np_y - 1][col]), 1, MPI_CHAR, bottom, col, comm_grid);
+        MPI_Send(&(matrix[local_n_rows][col]), 1, MPI_CHAR, bottom, col, comm_grid);
 
         MPI_Recv(&(matrix[0][col]), 1, MPI_CHAR, top, col, comm_grid, MPI_STATUS_IGNORE);
-        MPI_Recv(&(matrix[np_y][col]), 1, MPI_CHAR, bottom, col, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Recv(&(matrix[local_n_rows+1][col]), 1, MPI_CHAR, bottom, col, comm_grid, MPI_STATUS_IGNORE);
     }
 
     // Faltan las esquinas. Con los vecinos esquina sólo intercambiamos las esquinas
     // Arriba derecha
-    MPI_Send(&(matrix[np_y - 1][np_x - 1]), 1, MPI_CHAR, topright, 0, comm_grid);
-    MPI_Send(&(matrix[np_y - 1][0]), 1, MPI_CHAR, topleft, 0, comm_grid);
-    MPI_Send(&(matrix[0][np_x - 1]), 1, MPI_CHAR, bottomright, 0, comm_grid);
-    MPI_Send(&(matrix[0][0]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
+    MPI_Send(&(matrix[local_n_rows][local_n_cols]), 1, MPI_CHAR, topright, 0, comm_grid);
+    MPI_Send(&(matrix[local_n_rows][1]), 1, MPI_CHAR, topleft, 0, comm_grid);
+    MPI_Send(&(matrix[1][local_n_cols]), 1, MPI_CHAR, bottomright, 0, comm_grid);
+    MPI_Send(&(matrix[1][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
 
     // Arriba izquierda
-    MPI_Recv(&(matrix[np_y - 1][np_x - 1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[np_y - 1][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[0][np_x - 1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[local_n_rows+1][local_n_cols+1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[local_n_rows+1][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[0][local_n_cols+1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
     MPI_Recv(&(matrix[0][0]), 1, MPI_CHAR, bottomleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
 
     // Abajo derecha
@@ -224,21 +230,22 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
     // game loop
     for (int i = 0; i < MAX_GENERATIONS; i++)
     {
+        
         // printf("En bucle pay\n");
         // Hacemos los cálculos que no tienen dependencias con vecinos
         calculate_inner();
         // printf("calculado inner pay\n");
         // Intercambiar información con nuestros vecinos
-        interchange_info(np_y, np_x, left, right, top, bottom, topright, topleft, bottomright, bottomleft, comm_grid);
+        interchange_info(np_y, np_x, left, right, top, bottom, topright, topleft, bottomright, bottomleft, comm_grid, local_n_rows, local_n_cols);
         // Una vez tenemos los valores de nuestros vecinos, calculamos lo que nos queda
         calculate_outer();
-
         // printf("NO SALE BIEN PAY\n");
-        MPI_Request rq;
-        char buf[local_n_rows * local_n_cols];
-        fill_buf(local_n_rows, local_n_cols, buf);
-        MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
 
+
+        char buf[local_n_rows * local_n_cols];
+        fill_buf(local_n_rows, local_n_cols, buf, rank);
+        MPI_Request rq;
+        MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
         if (rank == 0)
         {
             char buffer[max_rows * max_cols];
