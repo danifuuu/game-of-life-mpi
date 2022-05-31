@@ -20,7 +20,6 @@ void calculate_rows_cols(int *vector_n_rows, int *vector_n_cols, int size, int n
         vector_n_rows[i] = N_ROWS / np_y;
         vector_n_cols[i] = N_COLS / np_x;
 
-        printf("i: %d, N_ROWS %d, N_COLS %d, np_x %d, np_y %d, VALOR %d\n", i, N_ROWS, N_COLS, np_x, np_y, vector_n_cols[i]);
     }
     // los últimos cargan con los restos (en caso de que haya)
     vector_n_rows[size - 1] += N_ROWS % np_y;
@@ -39,6 +38,16 @@ int main(int argc, char const *argv[])
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    // Comprobación de las dimensaiones
+    if (rank == 0)
+    {
+        if ((N_ROWS * N_COLS) % size != 0)
+        {
+            fprintf(stderr, "Número inválido de procesos, abortando\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+    }
 
     // Vamos a preparar nuestros procesos procesos para tratarlos como si se tratara de un grid o una
     // disposición cartesiana. Es infinitamente más fácil comunicarnos entre procesos de esta forma
@@ -61,10 +70,10 @@ int main(int argc, char const *argv[])
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &comm_grid);
     MPI_Cart_coords(comm_grid, rank, 2, my_pos);
 
-    // número de procesos por cada coordenada
+    // número de procesos por cada eje o dimensión
     // [y, x]
-    int np_y = dims[0]; // su NPROWS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    int np_x = dims[1]; // su NPCOLS
+    int np_y = dims[0];
+    int np_x = dims[1];
 
     // Proceso con rank 0 organiza el trabajo
     if (rank == 0)
@@ -76,7 +85,7 @@ int main(int argc, char const *argv[])
         printf("np_x: %d,np_y: %d\n", np_x, np_y);
         calculate_rows_cols(vector_n_rows, vector_n_cols, size, np_x, np_y);
 
-        // prepara graficos
+        // prepara gráficos
         SDL_Init(SDL_INIT_VIDEO);
 
         SDL_WindowFlags flags = SDL_WINDOW_SHOWN | SDL_WINDOW_MOUSE_FOCUS | SDL_WINDOW_ALLOW_HIGHDPI;
@@ -88,7 +97,7 @@ int main(int argc, char const *argv[])
             N_COLS * CELL_SIZE,
             flags);
 
-        // renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     }
 
     // llamada colectiva, se sincronizan todos los procesos. Cada uno recibe el número de filas
@@ -115,16 +124,35 @@ int main(int argc, char const *argv[])
                 matrix[i][j] = '1';
             else
                 matrix[i][j] = '0';
-
-            // printf("%c", matrix[i][j]);
         }
-        // printf("\n");
     }
-// printf("DEBUGGGERRR!!!\n\n\n\n\n");
     // play game. el maximo siempre esta en la ultima
-    MPI_Barrier(MPI_COMM_WORLD);
-    game(comm_grid, rank, np_x, np_y, vector_n_cols[0], vector_n_cols[sizeof(vector_n_cols) / sizeof(int) - 1],
-         vector_n_rows[0], vector_n_rows[sizeof(vector_n_rows) / sizeof(int) - 1]);
+
+    int max_measures[2];    // max_cols, max_rows;
+    int normal_measures[2]; // normal_cols, normal_rows;
+
+    normal_measures[0] = local_n_cols;
+    normal_measures[1] = local_n_rows;
+
+    if (rank == size - 1)
+    { // si soy el último rank, tengo filas y columnas restantes
+        max_measures[0] = local_n_cols;
+        max_measures[1] = local_n_rows;
+        // Espero a que el rank 0 me envie los valores standar
+        MPI_Recv(normal_measures, 2, MPI_INT, 0, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+
+        // comunico al resto los valores
+        MPI_Bcast(max_measures, 2, MPI_INT, rank, comm_grid);
+    }
+    else
+    {
+        if (rank == 0)
+        {
+            MPI_Send(normal_measures, 2, MPI_INT, size - 1, 0, comm_grid);
+        }
+        MPI_Bcast(max_measures, 2, MPI_INT, size - 1, comm_grid);
+    }
+    game(comm_grid, renderer, rank, np_x, np_y, normal_measures[0], max_measures[0], normal_measures[1], max_measures[1]);
 
     MPI_Finalize();
 
