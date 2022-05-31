@@ -125,9 +125,12 @@ void calculate_inner()
     // Tenemos que quitar la matriz base por los bordes, solo nos interesa la parte que no tiene
     // interacción con otros procesos
 
-    for (int i = 1; i < local_n_rows - 1; i++)
+    // por que 2? la primera para los intercambios, y la segunda está por fuera
+    
+    // el -1 igual. desde 2 hasta <= hago local_n -2 elementos. 
+    for (int i = 2; i <= local_n_rows-1; i++)
     {
-        for (int j = 1; j < local_n_cols - 1; j++)
+        for (int j = 2; j <= local_n_cols-1; j++)
         {
             find_next_state(i, j, neighbourhood_sum(i, j));
         }
@@ -141,7 +144,7 @@ void calculate_outer()
         for (int j = 1; j <= local_n_cols; j++)
         {
             // Solo si estamos en los extremos
-            if (i == 0 || j == 0 || i == local_n_rows - 1 || j == local_n_cols - 1)
+            if (i == 1 || j == 1 || i == local_n_rows || j == local_n_cols)
             {
                 neighbourhood_sum(i, j);
                 find_next_state(i, j, neighbourhood_sum(i, j));
@@ -214,24 +217,21 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
     int height, width;
 
     SDL_GetRendererOutputSize(renderer, &width, &height);
-    printf("PENE!, ancho? %d, alto? %d\n", width, height);
     SDL_Rect rectangle;
     Uint8 red_channel, green_channel, blue_channel;
 
-    for (int i = 0; i < height / CELL_SIZE; i++)
+    for (int i = 1; i <= height / CELL_SIZE; i++)
     {
-        for (int j = 0; j < width / CELL_SIZE; j++)
+        for (int j = 1; j <= width / CELL_SIZE; j++)
         {
             if (global_matrix[i][j] == '1')
             {
-                printf("1");
                 red_channel = 255;
                 green_channel = 255;
                 blue_channel = 255;
             }
             else
             {
-                printf("0");
                 red_channel = 20;
                 green_channel = 20;
                 blue_channel = 20;
@@ -242,13 +242,13 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
             rectangle.y = i * CELL_SIZE;
             SDL_RenderDrawRect(renderer, &rectangle);
         }
-        printf("\n");
+        // printf("\n");
     }
     SDL_RenderPresent(renderer);
-    SDL_Delay(5000);
+    SDL_Delay(200);
 }
 
-void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows)
+void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows)
 {
     // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir
     next_gen = allocate_memory(local_n_rows + 2, local_n_cols + 2);
@@ -326,9 +326,9 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
                 }
             }
 
-            print_global(global_matrix);
-            printf("\n\n\n\n\n\n");
-            // draw_board(r, global_matrix);
+            // print_global(global_matrix);
+            // printf("\n\n\n\n\n\n");
+            draw_board(r, global_matrix);
         }
 
         temp = matrix;
