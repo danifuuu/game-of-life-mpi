@@ -7,8 +7,6 @@
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_render.h>
 
-
-/*Global vars visible in every source file*/
 extern char **matrix;
 extern int local_n_rows;
 extern int local_n_cols;
@@ -16,6 +14,6 @@ extern int local_n_cols;
 #define N_ROWS 64
 #define N_COLS 64
 #define CELL_SIZE 10
-#define MAX_GENERATIONS 2
+#define MAX_GENERATIONS 2000
 
 #endif
