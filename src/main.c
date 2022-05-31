@@ -92,7 +92,7 @@ int main(int argc, char const *argv[])
     // dejamos las primeras y últimas filas y columnas vacias (para lo que mencionaba
     // antes de los intercambios)
     srand(getpid());
-    printf("Matriz local inicial de [%d,%d] (rank %d) con rows:%d y cols: %d\n", my_pos[0], my_pos[1], rank,local_n_rows, local_n_cols);
+    // printf("Matriz local inicial de [%d,%d] (rank %d) con rows:%d y cols: %d\n", my_pos[0], my_pos[1], rank,local_n_rows, local_n_cols);
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
@@ -102,9 +102,9 @@ int main(int argc, char const *argv[])
             else
                 matrix[i][j] = '0';
 
-        printf("%c", matrix[i][j]);
+        // printf("%c", matrix[i][j]);
         }
-        printf("\n");
+        // printf("\n");
 
     }
 

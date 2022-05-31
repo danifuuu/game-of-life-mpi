@@ -59,17 +59,17 @@ void fill_buf(int rows, int cols, char *buffer, int rank)
 {
     int index = 0;
 
-    printf("LLenado de buffer de %d\n", rank);
+    // printf("LLenado de buffer de %d\n", rank);
 
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
         {
             buffer[index++] = matrix[i][j];
-            printf("%c", buffer[index-1]);
+            // printf("%c", buffer[index-1]);
 
         }
-        printf("\n");
+        // printf("\n");
     }
     // printf("elementos: %d\n", index);
 }
@@ -153,7 +153,7 @@ void calculate_outer()
 
 void interchange_info(int np_y, int np_x, int left, int right, int top, int bottom, int topright, int topleft, int bottomright, int bottomleft, MPI_Comm comm_grid, int local_n_rows, int local_n_cols)
 {
-    printf("FILAS Y COLUMNAS: %d,%d\n", local_n_rows, local_n_cols);
+    // printf("FILAS Y COLUMNAS: %d,%d\n", local_n_rows, local_n_cols);
     int row, col = 0;
     // Enviamos y recibimos primera y última columna a nuestros vecinos left y right. Vamos a usar como tag el NUMERO DE FILA
     for (row = 1; row <= local_n_rows; row++)
@@ -291,7 +291,7 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
             }
 
             print_global(global_matrix);
-            printf("\n\n\n\n");
+            printf("\n\n\n\n\n\n");
         }
 
         temp = matrix;
