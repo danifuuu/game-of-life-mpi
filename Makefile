@@ -7,7 +7,7 @@ CC = mpicc
 RUN = mpirun
 CFLAGS  = -c -I$(DIRHEA) -g3
 RFLAGS = --oversubscribe -n 16
-LDLIBS = 
+LDLIBS = -lSDL2
 
 
 all: dirs main

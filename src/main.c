@@ -4,10 +4,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "misc_header.h"
 #include "game.h"
 #include "utils.h"
-
+#include "misc_header.h"
 
 char **matrix;
 int local_n_rows;
@@ -21,7 +20,7 @@ void calculate_rows_cols(int *vector_n_rows, int *vector_n_cols, int size, int n
         vector_n_rows[i] = N_ROWS / np_y;
         vector_n_cols[i] = N_COLS / np_x;
 
-        printf("i: %d, N_ROWS %d, N_COLS %d, np_x %d, np_y %d, VALOR %d\n",i, N_ROWS, N_COLS, np_x, np_y, vector_n_cols[i]);
+        printf("i: %d, N_ROWS %d, N_COLS %d, np_x %d, np_y %d, VALOR %d\n", i, N_ROWS, N_COLS, np_x, np_y, vector_n_cols[i]);
     }
     // los últimos cargan con los restos (en caso de que haya)
     vector_n_rows[size - 1] += N_ROWS % np_y;
@@ -35,6 +34,7 @@ int main(int argc, char const *argv[])
 
     int *vector_n_rows;
     int *vector_n_cols;
+    SDL_Renderer *renderer;
 
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -75,6 +75,20 @@ int main(int argc, char const *argv[])
 
         printf("np_x: %d,np_y: %d\n", np_x, np_y);
         calculate_rows_cols(vector_n_rows, vector_n_cols, size, np_x, np_y);
+
+        // prepara graficos
+        SDL_Init(SDL_INIT_VIDEO);
+
+        SDL_WindowFlags flags = SDL_WINDOW_SHOWN | SDL_WINDOW_MOUSE_FOCUS | SDL_WINDOW_ALLOW_HIGHDPI;
+        SDL_Window *window = SDL_CreateWindow(
+            "Juego de la vida de Conway",
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            N_ROWS * CELL_SIZE,
+            N_COLS * CELL_SIZE,
+            flags);
+
+        // renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     }
 
     // llamada colectiva, se sincronizan todos los procesos. Cada uno recibe el número de filas
@@ -102,13 +116,13 @@ int main(int argc, char const *argv[])
             else
                 matrix[i][j] = '0';
 
-        // printf("%c", matrix[i][j]);
+            // printf("%c", matrix[i][j]);
         }
         // printf("\n");
-
     }
-
+// printf("DEBUGGGERRR!!!\n\n\n\n\n");
     // play game. el maximo siempre esta en la ultima
+    MPI_Barrier(MPI_COMM_WORLD);
     game(comm_grid, rank, np_x, np_y, vector_n_cols[0], vector_n_cols[sizeof(vector_n_cols) / sizeof(int) - 1],
          vector_n_rows[0], vector_n_rows[sizeof(vector_n_rows) / sizeof(int) - 1]);
 

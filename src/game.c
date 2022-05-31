@@ -67,7 +67,6 @@ void fill_buf(int rows, int cols, char *buffer, int rank)
         {
             buffer[index++] = matrix[i][j];
             // printf("%c", buffer[index-1]);
-
         }
         // printf("\n");
     }
@@ -162,7 +161,7 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
         MPI_Send(&(matrix[row][local_n_cols]), 1, MPI_CHAR, right, row, comm_grid);
 
         MPI_Recv(&(matrix[row][0]), 1, MPI_CHAR, left, row, comm_grid, MPI_STATUS_IGNORE);
-        MPI_Recv(&(matrix[row][local_n_cols+1]), 1, MPI_CHAR, right, row, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Recv(&(matrix[row][local_n_cols + 1]), 1, MPI_CHAR, right, row, comm_grid, MPI_STATUS_IGNORE);
     }
 
     // Enviamos y recibimos primera y última fila a nuestros vecinos top y bottom. tag = número de columna
@@ -172,7 +171,7 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
         MPI_Send(&(matrix[local_n_rows][col]), 1, MPI_CHAR, bottom, col, comm_grid);
 
         MPI_Recv(&(matrix[0][col]), 1, MPI_CHAR, top, col, comm_grid, MPI_STATUS_IGNORE);
-        MPI_Recv(&(matrix[local_n_rows+1][col]), 1, MPI_CHAR, bottom, col, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Recv(&(matrix[local_n_rows + 1][col]), 1, MPI_CHAR, bottom, col, comm_grid, MPI_STATUS_IGNORE);
     }
 
     // Faltan las esquinas. Con los vecinos esquina sólo intercambiamos las esquinas
@@ -183,9 +182,9 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
     MPI_Send(&(matrix[1][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
 
     // Arriba izquierda
-    MPI_Recv(&(matrix[local_n_rows+1][local_n_cols+1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[local_n_rows+1][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[0][local_n_cols+1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[local_n_rows + 1][local_n_cols + 1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[local_n_rows + 1][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[0][local_n_cols + 1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
     MPI_Recv(&(matrix[0][0]), 1, MPI_CHAR, bottomleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
 
     // Abajo derecha
@@ -210,6 +209,45 @@ void print_global(char matrix[N_ROWS][N_COLS])
     }
 }
 
+void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
+{
+    int height, width;
+
+    SDL_GetRendererOutputSize(renderer, &width, &height);
+    printf("PENE!, ancho? %d, alto? %d\n", width, height);
+    SDL_Rect rectangle;
+    Uint8 red_channel, green_channel, blue_channel;
+
+    for (int i = 0; i < height / CELL_SIZE; i++)
+    {
+        for (int j = 0; j < width / CELL_SIZE; j++)
+        {
+            if (global_matrix[i][j] == '1')
+            {
+                printf("1");
+                red_channel = 255;
+                green_channel = 255;
+                blue_channel = 255;
+            }
+            else
+            {
+                printf("0");
+                red_channel = 20;
+                green_channel = 20;
+                blue_channel = 20;
+            }
+
+            SDL_SetRenderDrawColor(renderer, red_channel, green_channel, blue_channel, 255);
+            rectangle.x = j * CELL_SIZE;
+            rectangle.y = i * CELL_SIZE;
+            SDL_RenderDrawRect(renderer, &rectangle);
+        }
+        printf("\n");
+    }
+    SDL_RenderPresent(renderer);
+    SDL_Delay(5000);
+}
+
 void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows)
 {
     // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir
@@ -226,11 +264,10 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
 
     // calculos para los que no se necesitan vecinos (matriz interna sin contar los bordes, es decir,
     //  primera fila y primera columna)
-
     // game loop
     for (int i = 0; i < MAX_GENERATIONS; i++)
     {
-        
+
         // printf("En bucle pay\n");
         // Hacemos los cálculos que no tienen dependencias con vecinos
         calculate_inner();
@@ -240,7 +277,6 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
         // Una vez tenemos los valores de nuestros vecinos, calculamos lo que nos queda
         calculate_outer();
         // printf("NO SALE BIEN PAY\n");
-
 
         char buf[local_n_rows * local_n_cols];
         fill_buf(local_n_rows, local_n_cols, buf, rank);
@@ -292,6 +328,7 @@ void game(MPI_Comm comm_grid, int rank, int np_x, int np_y, int normal_cols, int
 
             print_global(global_matrix);
             printf("\n\n\n\n\n\n");
+            // draw_board(r, global_matrix);
         }
 
         temp = matrix;
