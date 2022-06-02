@@ -93,8 +93,8 @@ int main(int argc, char const *argv[])
             "Juego de la vida de Conway",
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
-            N_ROWS * CELL_SIZE,
             N_COLS * CELL_SIZE,
+            N_ROWS * CELL_SIZE,
             flags);
 
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
