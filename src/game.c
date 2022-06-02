@@ -96,13 +96,13 @@ void find_next_state(int i, int j, int sum)
     if (matrix[i][j] == '1')
     {
         // Muere si la suma de sus vecinos vivos es distinta de 2 o 3
-        if (sum < 2 || sum > 3)
+        if (sum == 2 || sum == 3)
         {
-            next_gen[i][j] = '0';
+            next_gen[i][j] = '1';
         }
         else
         {
-            next_gen[i][j] = '1';
+            next_gen[i][j] = '0';
         }
     }
     else
@@ -220,9 +220,9 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
     SDL_Rect rectangle;
     Uint8 red_channel, green_channel, blue_channel;
 
-    for (int i = 1; i <= height / CELL_SIZE; i++)
+    for (int i = 0; i < height / CELL_SIZE; i++)
     {
-        for (int j = 1; j <= width / CELL_SIZE; j++)
+        for (int j = 0; j < width / CELL_SIZE; j++)
         {
             if (global_matrix[i][j] == '1')
             {
