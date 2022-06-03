@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #include "game.h"
-#include "utils.h"
 #include "misc_header.h"
 
 char **matrix;

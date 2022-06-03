@@ -5,7 +5,6 @@
 
 #include "misc_header.h"
 #include "game.h"
-#include "utils.h"
 
 #define N_NBR 8
 
@@ -54,30 +53,18 @@ void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *l
     if (corner_pos[1] < 0)
         corner_pos[1] = np_x - 1;
     MPI_Cart_rank(comm_grid, corner_pos, bottomleft);
-
-    int pene[2];
-    int gordo[2];
-    MPI_Cart_coords(comm_grid, *top, 2, pene);
-    MPI_Cart_coords(comm_grid, *bottom, 2, gordo);
-
-    // y,x
-    // printf("soy  (rank :%d)y:%d,x:%d. Vecinos: top:%d,%d, bot:%d,%d\n", my_rank, my_pos[0], my_pos[1], pene[0], pene[1], gordo[0], gordo[1]);
 }
 
-void fill_buf(int rows, int cols, char *buffer, int rank, MPI_Comm comm_grid)
+void fill_buf(int rows, int cols, char *buffer)
 {
     int index = 0;
-
-    // printf("LLenado de buffer de %d\n", rank);
 
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
         {
             buffer[index++] = matrix[i][j];
-            // printf("%c", buffer[index-1]);
         }
-        // printf("\n");
     }
 }
 
@@ -288,7 +275,7 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
         // printf("NO SALE BIEN PAY\n");
 
         char buf[local_n_rows * local_n_cols];
-        fill_buf(local_n_rows, local_n_cols, buf, rank, comm_grid);
+        fill_buf(local_n_rows, local_n_cols, buf);
         MPI_Request rq;
         MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
         if (rank == 0)
@@ -326,7 +313,7 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
                     del_cols = x + max_cols;
                 }
                 int index = 0;
-                // printf("rank:%d, del_rows:%d, del_cols:%d, x:%d, y:%d\n", st.MPI_SOURCE, del_rows, del_cols, x, y);
+                
                 for (int j = y; j < del_rows; j++)
                 {
                     for (int k = x; k < del_cols; k++)
