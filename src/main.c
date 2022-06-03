@@ -20,9 +20,6 @@ void calculate_rows_cols(int *vector_n_rows, int *vector_n_cols, int size, int n
         vector_n_cols[i] = N_COLS / np_x;
 
     }
-    // los últimos cargan con los restos (en caso de que haya)
-    vector_n_rows[size - 1] += N_ROWS % np_y;
-    vector_n_cols[size - 1] += N_COLS % np_x;
 }
 
 int main(int argc, char const *argv[])
@@ -51,16 +48,14 @@ int main(int argc, char const *argv[])
     // Vamos a preparar nuestros procesos procesos para tratarlos como si se tratara de un grid o una
     // disposición cartesiana. Es infinitamente más fácil comunicarnos entre procesos de esta forma
     // gracias a las primitivas que nos ofrece MPI. Vamos a estar tratando con una topología 2D
-
     int dims[2] = {0, 0}; // dejando 0,0 la primitiva escoge la mejor disposición de procesos en 2D
 
-    // printf("size? %d\n", size);
     MPI_Dims_create(size, 2, dims);
 
     int my_pos[2];
 
     // Nuestras 2 dimensiones son periódicas. Si no lo fueran, una topología 2d se comportaría o sería
-    // como un rectángulo. Al activar o setear la periocidad, nuestra topología tiene el comportamiento de
+    // como un rectángulo. Al activar o setear la periodicidad, nuestra topología tiene el comportamiento de
     // un toroide. E.g. los procesos de la primera fila son vecinos con los de la última fila (sin que nosotros)
     // controlemos nada explícitamente. https://stackoverflow.com/questions/19200836/mpi-cart-create-period-argument
     int period[2] = {1, 1};
@@ -87,7 +82,7 @@ int main(int argc, char const *argv[])
         // prepara gráficos
         SDL_Init(SDL_INIT_VIDEO);
 
-        SDL_WindowFlags flags = SDL_WINDOW_SHOWN | SDL_WINDOW_MOUSE_FOCUS | SDL_WINDOW_ALLOW_HIGHDPI;
+        SDL_WindowFlags flags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
         SDL_Window *window = SDL_CreateWindow(
             "Juego de la vida de Conway",
             SDL_WINDOWPOS_CENTERED,
@@ -104,8 +99,6 @@ int main(int argc, char const *argv[])
     MPI_Scatter(vector_n_rows, 1, MPI_INT, &local_n_rows, 1, MPI_INT, 0, comm_grid);
     MPI_Scatter(vector_n_cols, 1, MPI_INT, &local_n_cols, 1, MPI_INT, 0, comm_grid);
 
-    // eliminamos los vectores, cada proceso tiene ya sus valores y no nos hacen falta
-
     // Vamos a reservar 2 filas y 2 columnas extras para los intercambios
     // con los vecinos
     matrix = allocate_memory(local_n_rows + 2, local_n_cols + 2);
@@ -114,7 +107,6 @@ int main(int argc, char const *argv[])
     // dejamos las primeras y últimas filas y columnas vacias (para lo que mencionaba
     // antes de los intercambios)
     srand(getpid());
-    // printf("Matriz local inicial de [%d,%d] (rank %d) con rows:%d y cols: %d\n", my_pos[0], my_pos[1], rank,local_n_rows, local_n_cols);
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
