@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "misc_header.h"
 #include "game.h"
 
 #define N_NBR 8
