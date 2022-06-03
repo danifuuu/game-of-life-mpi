@@ -240,11 +240,11 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
         }
     }
     SDL_RenderPresent(renderer);
-    // SDL_Delay(200);
-    usleep(200000);
+    SDL_Delay(100);
+    // usleep(200000);
 }
 
-void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows)
+void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int n_rows, int n_cols)
 {
     // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir
     next_gen = allocate_memory(local_n_rows + 2, local_n_cols + 2);
@@ -280,7 +280,7 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
         MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
         if (rank == 0)
         {
-            char buffer[max_rows * max_cols];
+            char buffer[n_rows * n_cols];
             MPI_Status st;
             int elements;
             char global_matrix[N_ROWS][N_COLS];
@@ -295,25 +295,18 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
 
             for (int a = 0; a < size; a++)
             {
-                MPI_Recv(buffer, max_rows * max_cols, MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_grid, &st);
+                MPI_Recv(buffer, n_rows * n_cols, MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_grid, &st);
                 elements = st.MPI_TAG;
                 MPI_Cart_coords(comm_grid, st.MPI_SOURCE, 2, pos);
 
-                y = pos[0] * normal_rows;
-                x = pos[1] * normal_cols;
+                y = pos[0] * n_rows;
+                x = pos[1] * n_cols;
 
-                if (elements == (normal_rows * normal_cols))
-                {
-                    del_rows = y + normal_rows;
-                    del_cols = x + normal_cols;
-                }
-                else
-                {
-                    del_rows = y + max_rows;
-                    del_cols = x + max_cols;
-                }
+                del_rows = y + n_rows;
+                del_cols = x + n_cols;
+
                 int index = 0;
-                
+
                 for (int j = y; j < del_rows; j++)
                 {
                     for (int k = x; k < del_cols; k++)

@@ -117,33 +117,8 @@ int main(int argc, char const *argv[])
                 matrix[i][j] = '0';
         }
     }
-    // play game. el maximo siempre esta en la ultima
 
-    int max_measures[2];    // max_cols, max_rows;
-    int normal_measures[2]; // normal_cols, normal_rows;
-
-    normal_measures[0] = local_n_cols;
-    normal_measures[1] = local_n_rows;
-
-    if (rank == size - 1)
-    { // si soy el último rank, tengo filas y columnas restantes
-        max_measures[0] = local_n_cols;
-        max_measures[1] = local_n_rows;
-        // Espero a que el rank 0 me envie los valores standar
-        MPI_Recv(normal_measures, 2, MPI_INT, 0, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-
-        // comunico al resto los valores
-        MPI_Bcast(max_measures, 2, MPI_INT, rank, comm_grid);
-    }
-    else
-    {
-        if (rank == 0)
-        {
-            MPI_Send(normal_measures, 2, MPI_INT, size - 1, 0, comm_grid);
-        }
-        MPI_Bcast(max_measures, 2, MPI_INT, size - 1, comm_grid);
-    }
-    game(comm_grid, renderer, rank, np_x, np_y, normal_measures[0], max_measures[0], normal_measures[1], max_measures[1]);
+    game(comm_grid, renderer, rank, np_x, np_y, local_n_rows, local_n_cols);
 
     MPI_Finalize();
 
