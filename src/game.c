@@ -21,7 +21,7 @@ void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *l
     // de esta función para obtener nuestros vecinos, sin tener que preocuparnos de si somos la última
     // o primera fila. Se encarga automáticamente. Decimos en qué eje queremos obtener los vecinos, que
     // están siempre a un desplazamiento de 1 unidad respecto a nuestro proceso "base"
-    MPI_Cart_shift(comm_grid, 0, disp, top, bottom);
+    MPI_Cart_shift(comm_grid, 0, disp, bottom, top);
     MPI_Cart_shift(comm_grid, 1, disp, left, right);
 
     // Para las esquinas tenemos que hacerlo distinto, no es tan fácil como hacer un shift
@@ -61,7 +61,7 @@ void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *l
     MPI_Cart_coords(comm_grid, *bottom, 2, gordo);
 
     // y,x
-    printf("soy  (rank :%d)y:%d,x:%d. Vecinos: top:%d,%d, bot:%d,%d\n", my_rank, my_pos[0], my_pos[1], pene[0], pene[1], gordo[0], gordo[1]);
+    // printf("soy  (rank :%d)y:%d,x:%d. Vecinos: top:%d,%d, bot:%d,%d\n", my_rank, my_pos[0], my_pos[1], pene[0], pene[1], gordo[0], gordo[1]);
 }
 
 void fill_buf(int rows, int cols, char *buffer, int rank, MPI_Comm comm_grid)
@@ -79,18 +79,6 @@ void fill_buf(int rows, int cols, char *buffer, int rank, MPI_Comm comm_grid)
         }
         // printf("\n");
     }
-    int i,j;
-    for ( i = 0; i <= local_n_rows+1; i++)
-    {
-        for ( j = 0; j <= local_n_cols+1; j++)
-        {
-            printf("%c", matrix[i][j]);
-        }
-        printf("\n");
-    }
-    int pos[2];
-    MPI_Cart_coords(comm_grid, rank, 2, pos);
-    printf("elementos: %d, rank: %d, pos:%d,%d, local_n_rows: %d, local_n_cols %d\n", index, rank, pos[0], pos[1], i, j);
 }
 
 int neighbourhood_sum(int outer_i, int outer_j)
@@ -203,10 +191,10 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
 
     // Faltan las esquinas. Con los vecinos esquina sólo intercambiamos las esquinas
 
-    MPI_Send(&(matrix[1][1]), 1, MPI_CHAR, topleft, 0, comm_grid);
-    MPI_Send(&(matrix[1][local_n_cols]), 1, MPI_CHAR, topright, 0, comm_grid);
-    MPI_Send(&(matrix[local_n_rows][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
-    MPI_Send(&(matrix[local_n_rows][local_n_cols]), 1, MPI_CHAR, bottomright, 0, comm_grid);
+    MPI_Isend(&(matrix[1][1]), 1, MPI_CHAR, topleft, 0, comm_grid, &rq);
+    MPI_Isend(&(matrix[1][local_n_cols]), 1, MPI_CHAR, topright, 0, comm_grid, &rq);
+    MPI_Isend(&(matrix[local_n_rows][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid, &rq);
+    MPI_Isend(&(matrix[local_n_rows][local_n_cols]), 1, MPI_CHAR, bottomright, 0, comm_grid, &rq);
 
     MPI_Recv(&(matrix[local_n_rows + 1][local_n_cols + 1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
     MPI_Recv(&(matrix[local_n_rows + 1][0]), 1, MPI_CHAR, bottomleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
@@ -263,7 +251,6 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
             rectangle.w = CELL_SIZE - 1;
             SDL_RenderDrawRect(renderer, &rectangle);
         }
-        // printf("\n");
     }
     SDL_RenderPresent(renderer);
     // SDL_Delay(200);

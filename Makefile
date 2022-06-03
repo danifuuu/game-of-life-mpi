@@ -6,7 +6,7 @@ DIRSRC := src/
 CC = mpicc
 RUN = mpirun
 CFLAGS  = -c -I$(DIRHEA) -g3
-RFLAGS = --oversubscribe -n 16
+RFLAGS =
 LDLIBS = -lSDL2
 
 
@@ -25,7 +25,7 @@ game: $(DIROBJ)game.o
 	$(CC) -o $(DIREXE)$@ $^ $(LDLIBS)
 
 run:
-	mpirun -n 8 --oversubscribe ./exec/main
+	mpirun -n 16 --oversubscribe ./exec/main
 
 clean:
 	rm -rf *~ core $(DIROBJ) $(DIREXE) $(DIRHEA)*~ $(DIRSRC)*~ 
