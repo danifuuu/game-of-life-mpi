@@ -10,7 +10,7 @@ RFLAGS = --oversubscribe -n 16
 LDLIBS = -lSDL2
 
 
-all: dirs main
+all: clean dirs main
 
 dirs:
 	mkdir -p $(DIROBJ) $(DIREXE)
@@ -23,6 +23,9 @@ main: $(DIROBJ)main.o $(DIROBJ)game.o $(DIROBJ)utils.o
 
 game: $(DIROBJ)game.o 
 	$(CC) -o $(DIREXE)$@ $^ $(LDLIBS)
+
+run:
+	mpirun -n 8 --oversubscribe ./exec/main
 
 clean:
 	rm -rf *~ core $(DIROBJ) $(DIREXE) $(DIRHEA)*~ $(DIRSRC)*~ 

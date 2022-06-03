@@ -1,6 +1,7 @@
 #include <openmpi/mpi.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "misc_header.h"
 #include "game.h"
@@ -53,9 +54,17 @@ void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *l
     if (corner_pos[1] < 0)
         corner_pos[1] = np_x - 1;
     MPI_Cart_rank(comm_grid, corner_pos, bottomleft);
+
+    int pene[2];
+    int gordo[2];
+    MPI_Cart_coords(comm_grid, *top, 2, pene);
+    MPI_Cart_coords(comm_grid, *bottom, 2, gordo);
+
+    // y,x
+    printf("soy  (rank :%d)y:%d,x:%d. Vecinos: top:%d,%d, bot:%d,%d\n", my_rank, my_pos[0], my_pos[1], pene[0], pene[1], gordo[0], gordo[1]);
 }
 
-void fill_buf(int rows, int cols, char *buffer, int rank)
+void fill_buf(int rows, int cols, char *buffer, int rank, MPI_Comm comm_grid)
 {
     int index = 0;
 
@@ -70,7 +79,18 @@ void fill_buf(int rows, int cols, char *buffer, int rank)
         }
         // printf("\n");
     }
-    // printf("elementos: %d\n", index);
+    int i,j;
+    for ( i = 0; i <= local_n_rows+1; i++)
+    {
+        for ( j = 0; j <= local_n_cols+1; j++)
+        {
+            printf("%c", matrix[i][j]);
+        }
+        printf("\n");
+    }
+    int pos[2];
+    MPI_Cart_coords(comm_grid, rank, 2, pos);
+    printf("elementos: %d, rank: %d, pos:%d,%d, local_n_rows: %d, local_n_cols %d\n", index, rank, pos[0], pos[1], i, j);
 }
 
 int neighbourhood_sum(int outer_i, int outer_j)
@@ -126,11 +146,11 @@ void calculate_inner()
     // interacción con otros procesos
 
     // por que 2? la primera para los intercambios, y la segunda está por fuera
-    
-    // el -1 igual. desde 2 hasta <= hago local_n -2 elementos. 
-    for (int i = 2; i <= local_n_rows-1; i++)
+
+    // el -1 igual. desde 2 hasta <= hago local_n -2 elementos.
+    for (int i = 2; i <= local_n_rows - 1; i++)
     {
-        for (int j = 2; j <= local_n_cols-1; j++)
+        for (int j = 2; j <= local_n_cols - 1; j++)
         {
             find_next_state(i, j, neighbourhood_sum(i, j));
         }
@@ -146,7 +166,7 @@ void calculate_outer()
             // Solo si estamos en los extremos
             if (i == 1 || j == 1 || i == local_n_rows || j == local_n_cols)
             {
-                neighbourhood_sum(i, j);
+                // neighbourhood_sum(i, j);
                 find_next_state(i, j, neighbourhood_sum(i, j));
             }
         }
@@ -158,49 +178,48 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
     // printf("FILAS Y COLUMNAS: %d,%d\n", local_n_rows, local_n_cols);
     int row, col = 0;
     // Enviamos y recibimos primera y última columna a nuestros vecinos left y right. Vamos a usar como tag el NUMERO DE FILA
+
+    // multiplicar filas por columnas me ayuda a saber de qué proceso tengo que recoger datos
+    MPI_Request rq;
+
     for (row = 1; row <= local_n_rows; row++)
     {
-        MPI_Send(&(matrix[row][1]), 1, MPI_CHAR, left, row, comm_grid);
-        MPI_Send(&(matrix[row][local_n_cols]), 1, MPI_CHAR, right, row, comm_grid);
+        MPI_Isend(&(matrix[row][1]), 1, MPI_CHAR, left, row * 1, comm_grid, &rq);
+        MPI_Recv(&(matrix[row][local_n_cols + 1]), 1, MPI_CHAR, right, row * 1, comm_grid, MPI_STATUS_IGNORE);
 
-        MPI_Recv(&(matrix[row][0]), 1, MPI_CHAR, left, row, comm_grid, MPI_STATUS_IGNORE);
-        MPI_Recv(&(matrix[row][local_n_cols + 1]), 1, MPI_CHAR, right, row, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Isend(&(matrix[row][local_n_cols]), 1, MPI_CHAR, right, row * local_n_cols, comm_grid, &rq);
+        MPI_Recv(&(matrix[row][0]), 1, MPI_CHAR, left, row * local_n_cols, comm_grid, MPI_STATUS_IGNORE);
     }
 
     // Enviamos y recibimos primera y última fila a nuestros vecinos top y bottom. tag = número de columna
     for (col = 1; col <= local_n_cols; col++)
     {
-        MPI_Send(&(matrix[1][col]), 1, MPI_CHAR, top, col, comm_grid);
-        MPI_Send(&(matrix[local_n_rows][col]), 1, MPI_CHAR, bottom, col, comm_grid);
+        MPI_Isend(&(matrix[1][col]), 1, MPI_CHAR, top, col * 1, comm_grid, &rq);
+        MPI_Recv(&(matrix[local_n_rows + 1][col]), 1, MPI_CHAR, bottom, col * 1, comm_grid, MPI_STATUS_IGNORE);
 
-        MPI_Recv(&(matrix[0][col]), 1, MPI_CHAR, top, col, comm_grid, MPI_STATUS_IGNORE);
-        MPI_Recv(&(matrix[local_n_rows + 1][col]), 1, MPI_CHAR, bottom, col, comm_grid, MPI_STATUS_IGNORE);
+        MPI_Isend(&(matrix[local_n_rows][col]), 1, MPI_CHAR, bottom, col * local_n_rows, comm_grid, &rq);
+        MPI_Recv(&(matrix[0][col]), 1, MPI_CHAR, top, col * local_n_rows, comm_grid, MPI_STATUS_IGNORE);
     }
 
     // Faltan las esquinas. Con los vecinos esquina sólo intercambiamos las esquinas
-    // Arriba derecha
-    MPI_Send(&(matrix[local_n_rows][local_n_cols]), 1, MPI_CHAR, topright, 0, comm_grid);
-    MPI_Send(&(matrix[local_n_rows][1]), 1, MPI_CHAR, topleft, 0, comm_grid);
-    MPI_Send(&(matrix[1][local_n_cols]), 1, MPI_CHAR, bottomright, 0, comm_grid);
-    MPI_Send(&(matrix[1][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
 
-    // Arriba izquierda
-    MPI_Recv(&(matrix[local_n_rows + 1][local_n_cols + 1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[local_n_rows + 1][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[0][local_n_cols + 1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
-    MPI_Recv(&(matrix[0][0]), 1, MPI_CHAR, bottomleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Send(&(matrix[1][1]), 1, MPI_CHAR, topleft, 0, comm_grid);
+    MPI_Send(&(matrix[1][local_n_cols]), 1, MPI_CHAR, topright, 0, comm_grid);
+    MPI_Send(&(matrix[local_n_rows][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid);
+    MPI_Send(&(matrix[local_n_rows][local_n_cols]), 1, MPI_CHAR, bottomright, 0, comm_grid);
 
-    // Abajo derecha
-
-    // Abajo izquierda
+    MPI_Recv(&(matrix[local_n_rows + 1][local_n_cols + 1]), 1, MPI_CHAR, bottomright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[local_n_rows + 1][0]), 1, MPI_CHAR, bottomleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[0][local_n_cols + 1]), 1, MPI_CHAR, topright, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
+    MPI_Recv(&(matrix[0][0]), 1, MPI_CHAR, topleft, MPI_ANY_TAG, comm_grid, MPI_STATUS_IGNORE);
 }
 
 void print_global(char matrix[N_ROWS][N_COLS])
 {
     printf("\n");
-    for (int i = 0; i < N_ROWS; i++)
+    for (int i = 1; i <= N_ROWS; i++)
     {
-        for (int j = 0; j < N_COLS; j++)
+        for (int j = 1; j <= N_COLS; j++)
         {
             // printf("%c", matrix[i][j]);
             if (matrix[i][j] == '1')
@@ -240,12 +259,15 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
             SDL_SetRenderDrawColor(renderer, red_channel, green_channel, blue_channel, 255);
             rectangle.x = j * CELL_SIZE;
             rectangle.y = i * CELL_SIZE;
+            rectangle.h = CELL_SIZE - 1;
+            rectangle.w = CELL_SIZE - 1;
             SDL_RenderDrawRect(renderer, &rectangle);
         }
         // printf("\n");
     }
     SDL_RenderPresent(renderer);
-    SDL_Delay(200);
+    // SDL_Delay(200);
+    usleep(200000);
 }
 
 void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int normal_cols, int max_cols, int normal_rows, int max_rows)
@@ -279,7 +301,7 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
         // printf("NO SALE BIEN PAY\n");
 
         char buf[local_n_rows * local_n_cols];
-        fill_buf(local_n_rows, local_n_cols, buf, rank);
+        fill_buf(local_n_rows, local_n_cols, buf, rank, comm_grid);
         MPI_Request rq;
         MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
         if (rank == 0)
@@ -317,6 +339,7 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
                     del_cols = x + max_cols;
                 }
                 int index = 0;
+                // printf("rank:%d, del_rows:%d, del_cols:%d, x:%d, y:%d\n", st.MPI_SOURCE, del_rows, del_cols, x, y);
                 for (int j = y; j < del_rows; j++)
                 {
                     for (int k = x; k < del_cols; k++)

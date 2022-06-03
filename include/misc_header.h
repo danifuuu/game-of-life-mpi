@@ -11,8 +11,8 @@ extern char **matrix;
 extern int local_n_rows;
 extern int local_n_cols;
 
-#define N_ROWS 64
-#define N_COLS 64
+#define N_ROWS 16
+#define N_COLS 16
 #define CELL_SIZE 10
 #define MAX_GENERATIONS 2000
 
