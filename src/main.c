@@ -18,7 +18,6 @@ void calculate_rows_cols(int *vector_n_rows, int *vector_n_cols, int size, int n
     {
         vector_n_rows[i] = N_ROWS / np_y;
         vector_n_cols[i] = N_COLS / np_x;
-
     }
 }
 

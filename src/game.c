@@ -76,7 +76,7 @@ int neighbourhood_sum(int outer_i, int outer_j)
     {
         for (int j = -1; j <= 1; j++)
         {
-            if (i || j) // true siempre que i y j sean distintos de 0 (que seria el caso de ser tu mismo)
+            if (i || j) // true siempre que i y j sean distintos de 0 (que seria el caso de ser tú mismo)
                 if (matrix[outer_i + i][outer_j + j] == '1')
                     sum++;
         }
@@ -116,12 +116,14 @@ void find_next_state(int i, int j, int sum)
 
 void calculate_inner()
 {
-    // Tenemos que quitar la matriz base por los bordes, solo nos interesa la parte que no tiene
+    // Tenemos que quitar la matriz base por los bordes, sólo nos interesa la parte que no tiene
     // interacción con otros procesos
 
-    // por que 2? la primera para los intercambios, y la segunda está por fuera
+    // por que i=2? la primera para los intercambios, y la segunda está por fuera (tendría interacción con vecinos)
 
-    // el -1 igual. desde 2 hasta <= hago local_n -2 elementos.
+    // el -1 igual. desde 2 hasta <= hago local_n -2 elementos. eg si nuestra matriz de cada proceso es de 6x6, realmente tendríamos
+    // una 7x7 (columnas y filas extras para guardar intercambios). Sólamente me interesa quedarme con la 5x5 (matriz de cada
+    // proceso, sin filas ni columnas auxiliares y sin las exteriores).
     for (int i = 2; i <= local_n_rows - 1; i++)
     {
         for (int j = 2; j <= local_n_cols - 1; j++)
@@ -133,6 +135,7 @@ void calculate_inner()
 
 void calculate_outer()
 {
+    // calculo el resto (lo que tiene interacción con los vecinos, sin contar las auxiliares)
     for (int i = 1; i <= local_n_rows; i++)
     {
         for (int j = 1; j <= local_n_cols; j++)
@@ -149,13 +152,14 @@ void calculate_outer()
 
 void interchange_info(int np_y, int np_x, int left, int right, int top, int bottom, int topright, int topleft, int bottomright, int bottomleft, MPI_Comm comm_grid, int local_n_rows, int local_n_cols)
 {
-    // printf("FILAS Y COLUMNAS: %d,%d\n", local_n_rows, local_n_cols);
     int row, col = 0;
-    // Enviamos y recibimos primera y última columna a nuestros vecinos left y right. Vamos a usar como tag el NUMERO DE FILA
 
-    // multiplicar filas por columnas me ayuda a saber de qué proceso tengo que recoger datos
+    // El tag me ayuda a situar el dato que está siendo recibido. Eg para que 2 matrices 4x4 se intercambien uno de sus lados,
+    // cada matriz le tiene que enviar a la otra 4 datos. No sabemos en qué orden van a recibirse, y por tanto nos ayudamos de la tag
+    // para situarlos.
     MPI_Request rq;
 
+    // Enviamos y recibimos primera y última columna a nuestros vecinos left y right (respectivamente)
     for (row = 1; row <= local_n_rows; row++)
     {
         MPI_Isend(&(matrix[row][1]), 1, MPI_CHAR, left, row * 1, comm_grid, &rq);
@@ -165,7 +169,7 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
         MPI_Recv(&(matrix[row][0]), 1, MPI_CHAR, left, row * local_n_cols, comm_grid, MPI_STATUS_IGNORE);
     }
 
-    // Enviamos y recibimos primera y última fila a nuestros vecinos top y bottom. tag = número de columna
+    // Enviamos y recibimos primera y última fila a nuestros vecinos top y bottom (respectivamente)
     for (col = 1; col <= local_n_cols; col++)
     {
         MPI_Isend(&(matrix[1][col]), 1, MPI_CHAR, top, col * 1, comm_grid, &rq);
@@ -176,7 +180,6 @@ void interchange_info(int np_y, int np_x, int left, int right, int top, int bott
     }
 
     // Faltan las esquinas. Con los vecinos esquina sólo intercambiamos las esquinas
-
     MPI_Isend(&(matrix[1][1]), 1, MPI_CHAR, topleft, 0, comm_grid, &rq);
     MPI_Isend(&(matrix[1][local_n_cols]), 1, MPI_CHAR, topright, 0, comm_grid, &rq);
     MPI_Isend(&(matrix[local_n_rows][1]), 1, MPI_CHAR, bottomleft, 0, comm_grid, &rq);
@@ -195,7 +198,6 @@ void print_global(char matrix[N_ROWS][N_COLS])
     {
         for (int j = 1; j <= N_COLS; j++)
         {
-            // printf("%c", matrix[i][j]);
             if (matrix[i][j] == '1')
                 printf("*");
             else
@@ -240,12 +242,11 @@ void draw_board(SDL_Renderer *renderer, char global_matrix[N_ROWS][N_COLS])
     }
     SDL_RenderPresent(renderer);
     SDL_Delay(100);
-    // usleep(200000);
 }
 
 void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int n_rows, int n_cols)
 {
-    // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir
+    // matriz para ir guardando los cambios de la siguiente generación sin sobreescribir la generación actual
     next_gen = allocate_memory(local_n_rows + 2, local_n_cols + 2);
 
     // vecinos
@@ -257,28 +258,24 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
 
     find_neighbours(comm_grid, rank, np_y, np_x, &left, &right, &bottom, &top, &topleft, &topright, &bottomleft, &bottomright);
 
-    // calculos para los que no se necesitan vecinos (matriz interna sin contar los bordes, es decir,
-    //  primera fila y primera columna)
-    // game loop
+    // loop de juego
     for (int i = 0; i < MAX_GENERATIONS; i++)
     {
-
-        // printf("En bucle pay\n");
         // Hacemos los cálculos que no tienen dependencias con vecinos
         calculate_inner();
-        // printf("calculado inner pay\n");
         // Intercambiar información con nuestros vecinos
         interchange_info(np_y, np_x, left, right, top, bottom, topright, topleft, bottomright, bottomleft, comm_grid, local_n_rows, local_n_cols);
         // Una vez tenemos los valores de nuestros vecinos, calculamos lo que nos queda
         calculate_outer();
-        // printf("NO SALE BIEN PAY\n");
 
+        // buffer de envío
         char buf[local_n_rows * local_n_cols];
         fill_buf(local_n_rows, local_n_cols, buf);
         MPI_Request rq;
         MPI_Isend(buf, local_n_rows * local_n_cols, MPI_CHAR, 0, local_n_rows * local_n_cols, comm_grid, &rq);
         if (rank == 0)
         {
+            // buffer de recepción
             char buffer[n_rows * n_cols];
             MPI_Status st;
             int elements;
@@ -322,7 +319,7 @@ void game(MPI_Comm comm_grid, SDL_Renderer *r, int rank, int np_x, int np_y, int
 
         temp = matrix;
         matrix = next_gen;
-        next_gen = temp;
+        next_gen = temp; // para no cruzar referencias
 
         MPI_Barrier(comm_grid);
     }
