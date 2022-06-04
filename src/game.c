@@ -5,8 +5,6 @@
 
 #include "game.h"
 
-#define N_NBR 8
-
 char **next_gen;
 
 void find_neighbours(MPI_Comm comm_grid, int my_rank, int np_y, int np_x, int *left, int *right, int *top, int *bottom, int *topleft, int *topright, int *bottomleft, int *bottomright)
