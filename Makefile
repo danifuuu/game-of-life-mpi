@@ -28,4 +28,4 @@ run:
 	mpirun -n 16 --oversubscribe ./exec/main
 
 clean:
-	rm -rf *~ core $(DIROBJ) $(DIREXE) $(DIRHEA)*~ $(DIRSRC)*~ 
+	rm -rf *~ core $(DIROBJ) $(DIREXE) $(DIRHEA)*~ $(DIRSRC)*~
